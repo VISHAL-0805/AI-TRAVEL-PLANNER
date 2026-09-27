@@ -3,6 +3,7 @@
 A multi-agent travel planning system built with LangGraph and FastAPI. It uses two specialized AI agents
  1. a research agent
  2. a planner agent
+
 that work together to generate detailed, day-by-day travel itineraries. The system includes a human-in-the-loop approval step so users can review, modify, or reject plans before they are finalized.
 
 
