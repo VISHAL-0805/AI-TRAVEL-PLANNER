@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 
 from langchain_groq import ChatGroq
@@ -6,44 +7,71 @@ from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from app.tools.budget import allocate_budget
 from app.tools.activities import recommend_activities
 from app.core.config import GROQ_API_KEY
+from app.core.utils import get_currency_info, clean_plan_dict
+
+logger = logging.getLogger(__name__)
 
 
-PLANNER_SYSTEM_PROMPT = """You are a travel itinerary planner. Using the destination research provided,
+PLANNER_SYSTEM_PROMPT_TEMPLATE = """You are a travel itinerary planner. Using the destination research provided,
 create a detailed day-by-day travel itinerary.
 
-Your itinerary should include for each day:
-- Morning, afternoon, and evening activities
-- Restaurant/food suggestions for each meal
-- Estimated costs per activity
-- Transportation notes between locations
+RULES:
+1. Show ALL costs in CURRENCY_PLACEHOLDER (the destination's local currency). Add USD equivalent in parentheses.
+   Example: "cost": "¥5,225 (~$35 USD)"
+2. Group activities by geographic area each day — minimize backtracking.
+   Name the neighborhood/area for each day's theme.
+3. Include specific timing for each activity (e.g., "9:00 AM - 11:00 AM").
+4. Add travel time between activities (e.g., "10 min walk" or "20 min by subway").
+5. Keep descriptions clear with proper spacing. Under 20 words each.
 
-Use the allocate_budget tool to plan spending and recommend_activities to find suitable activities.
+Use the allocate_budget tool first, then recommend_activities.
 
-IMPORTANT: Return ONLY valid JSON, no extra text. Keep descriptions short (under 20 words each).
-Use this exact structure:
-{{
+IMPORTANT: Return ONLY valid JSON, no extra text.
+{
     "trip_title": "...",
     "destination": "...",
-    "dates": {{"start": "...", "end": "..."}},
-    "total_budget": 0,
+    "currency": "CURRENCY_PLACEHOLDER",
+    "dates": {"start": "...", "end": "..."},
+    "total_budget": "BUDGET_PLACEHOLDER",
     "daily_itinerary": [
-        {{
+        {
             "day": 1,
             "date": "...",
             "theme": "...",
-            "morning": {{"activity": "...", "cost": 0, "duration": "2 hrs"}},
-            "afternoon": {{"activity": "...", "cost": 0, "duration": "3 hrs"}},
-            "evening": {{"activity": "...", "cost": 0, "duration": "2 hrs"}},
-            "meals": {{"breakfast": "...", "lunch": "...", "dinner": "..."}},
-            "daily_total": 0
-        }}
+            "area": "neighborhood name for the day",
+            "morning": {
+                "activity": "...",
+                "time": "9:00 AM - 11:00 AM",
+                "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)",
+                "duration": "2 hrs",
+                "travel_from_previous": "10 min walk from hotel"
+            },
+            "afternoon": {
+                "activity": "...",
+                "time": "12:00 PM - 3:00 PM",
+                "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)",
+                "duration": "3 hrs",
+                "travel_from_previous": "5 min walk"
+            },
+            "evening": {
+                "activity": "...",
+                "time": "6:00 PM - 8:00 PM",
+                "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)",
+                "duration": "2 hrs",
+                "travel_from_previous": "15 min by subway"
+            },
+            "meals": {
+                "breakfast": {"suggestion": "...", "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)"},
+                "lunch": {"suggestion": "...", "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)"},
+                "dinner": {"suggestion": "...", "cost": "0 CURRENCY_PLACEHOLDER (~$0 USD)"}
+            },
+            "daily_total": "0 CURRENCY_PLACEHOLDER (~$0 USD)"
+        }
     ],
-    "accommodation": {{"type": "...", "area": "...", "nightly_rate": 0}},
+    "accommodation": {"type": "...", "area": "...", "nightly_rate": "0 CURRENCY_PLACEHOLDER (~$0 USD)"},
     "packing_tips": ["..."],
     "important_notes": ["..."]
-}}
-
-Make the plan realistic and within budget. Prioritize the traveler's stated interests."""
+}"""
 
 
 def create_planner_agent():
@@ -65,22 +93,29 @@ async def run_planner(request_data: dict, research_data: dict) -> dict:
     num_days = max((end - start).days, 1)
     avg_budget = (request_data["budget_min"] + request_data["budget_max"]) / 2
 
+    currency_code, exchange_rate, currency_symbol = get_currency_info(request_data["destination"])
+    total_budget_local = f"{currency_symbol}{round(avg_budget * exchange_rate):,}"
+
+    budget_str = f"{total_budget_local} (~${int(avg_budget)} USD)"
+    prompt = PLANNER_SYSTEM_PROMPT_TEMPLATE.replace("CURRENCY_PLACEHOLDER", currency_code).replace("BUDGET_PLACEHOLDER", budget_str)
+
     user_msg = (
         f"Create a {num_days}-day itinerary based on this research:\n\n"
         f"{research_data.get('summary', 'No research available.')}\n\n"
         f"Trip details:\n"
         f"- Destination: {request_data['destination']}\n"
         f"- Dates: {request_data['start_date']} to {request_data['end_date']} ({num_days} days)\n"
-        f"- Budget: ${request_data['budget_min']} - ${request_data['budget_max']} "
-        f"(use ${avg_budget} as target)\n"
+        f"- Budget: ${request_data['budget_min']} - ${request_data['budget_max']} USD "
+        f"({total_budget_local} {currency_code} at target ${int(avg_budget)} USD)\n"
+        f"- Local currency: {currency_code} (1 USD = {exchange_rate} {currency_code})\n"
         f"- Interests: {', '.join(request_data.get('interests', ['general']))}\n"
         f"- Travelers: {request_data.get('num_travelers', 1)}\n\n"
         f"First use allocate_budget to plan spending, then recommend_activities to find things to do. "
-        f"Then build the full day-by-day itinerary."
+        f"Then build the full day-by-day itinerary with all costs in {currency_code}."
     )
 
     messages = [
-        SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+        SystemMessage(content=prompt),
         HumanMessage(content=user_msg),
     ]
 
@@ -98,8 +133,14 @@ async def run_planner(request_data: dict, research_data: dict) -> dict:
                 messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
 
     final_content = messages[-1].content if messages else "{}"
+    logger.info(f"Planner raw output length: {len(final_content)}")
+    logger.info(f"Planner raw output (first 500 chars): {final_content[:500]}")
 
     plan = _parse_plan_json(final_content)
+    plan = clean_plan_dict(plan)
+    plan["currency"] = currency_code
+    plan["currency_symbol"] = currency_symbol
+    plan["exchange_rate"] = exchange_rate
     return plan
 
 
@@ -116,7 +157,6 @@ def _parse_plan_json(content: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # try fixing truncated JSON by closing open brackets
     fixed = json_str
     open_braces = fixed.count("{") - fixed.count("}")
     open_brackets = fixed.count("[") - fixed.count("]")
