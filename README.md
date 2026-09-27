@@ -1,54 +1,57 @@
 # AI Travel Planner
 
-A multi-agent travel planning system built with LangGraph and FastAPI. It uses two specialized AI agents -- a research agent and a planner agent -- that work together to generate detailed, day-by-day travel itineraries. The system includes a human-in-the-loop approval step so users can review, modify, or reject plans before they are finalized.
+A multi-agent travel planning system built with LangGraph and FastAPI. It uses two specialized AI agents
+ 1. a research agent
+ 2. a planner agent
+that work together to generate detailed, day-by-day travel itineraries. The system includes a human-in-the-loop approval step so users can review, modify, or reject plans before they are finalized.
 
 
 ## How It Works
 
 The system follows a graph-based workflow with four main stages:
 
-1. **Research** -- The research agent searches the web (via Serper API) and checks weather forecasts (via OpenWeatherMap) to gather destination info like top attractions, safety tips, local customs, and transportation options.
+1. **Research** - The research agent searches the web (via Serper API) and checks weather forecasts (via OpenWeatherMap) to gather destination info like top attractions, safety tips, local customs, and transportation options.
 
-2. **Planning** -- The planner agent takes the research output, allocates the budget across categories (accommodation, food, activities, transport, misc), and builds a structured day-by-day itinerary with timed activities, meal suggestions, and cost estimates -- all in the destination's local currency.
+2. **Planning** - The planner agent takes the research output, allocates the budget across categories (accommodation, food, activities, transport, misc), and builds a structured day-by-day itinerary with timed activities, meal suggestions, and cost estimates -- all in the destination's local currency.
 
-3. **Human Review** -- The workflow pauses using LangGraph's `interrupt()` mechanism. The user can approve the plan, request modifications, or reject it entirely and trigger a re-research cycle.
+3. **Human Review** - The workflow pauses using LangGraph's `interrupt()` mechanism. The user can approve the plan, request modifications, or reject it entirely and trigger a re-research cycle.
 
-4. **Finalization** -- Once approved, the plan is saved and available for download.
+4. **Finalization** - Once approved, the plan is saved and available for download.
 
 
 ## Architecture
 
 ```
 app/
-  main.py              -- FastAPI application and API endpoints
-  models.py            -- Pydantic request/response schemas
+  main.py              - FastAPI application and API endpoints
+  models.py            - Pydantic request/response schemas
   agents/
-    research.py        -- Research agent (web search + weather tools)
-    planner.py         -- Planner agent (budget + activity tools)
+    research.py        - Research agent (web search + weather tools)
+    planner.py         - Planner agent (budget + activity tools)
   core/
-    graph.py           -- LangGraph StateGraph workflow definition
-    state.py           -- Thread-safe in-memory plan store
-    config.py          -- Environment variable loading
-    utils.py           -- Currency conversion and text cleanup utilities
+    graph.py           - LangGraph StateGraph workflow definition
+    state.py           - Thread-safe in-memory plan store
+    config.py          - Environment variable loading
+    utils.py           - Currency conversion and text cleanup utilities
   tools/
-    web_search.py      -- Serper API integration for web search
-    weather.py         -- OpenWeatherMap forecast with mock fallback
-    budget.py          -- Budget allocation across spending categories
-    activities.py      -- Activity recommendation engine
-ui.py                  -- Streamlit frontend
+    web_search.py      - Serper API integration for web search
+    weather.py         - OpenWeatherMap forecast with mock fallback
+    budget.py          - Budget allocation across spending categories
+    activities.py      - Activity recommendation engine
+ui.py                  - Streamlit frontend
 requirements.txt
-.env                   -- API keys (not committed)
+.env                   - API keys (not committed)
 ```
 
 
 ## Tech Stack
 
-- **LangGraph** -- Orchestrates the multi-agent workflow as a StateGraph. Uses `MemorySaver` as the checkpointer so state persists across the human-in-the-loop pause.
-- **LangChain + Groq** -- LLM calls go through `langchain-groq` using a free-tier model. Each agent has its own tools bound via `bind_tools()`.
-- **FastAPI** -- REST API with four endpoints for creating plans, checking status, submitting reviews, and retrieving the final plan.
-- **Streamlit** -- Interactive frontend where users fill in trip details, watch progress, review the draft, and download the final itinerary.
-- **Serper API** -- Powers the web search tool so the research agent can pull real-time destination info from Google.
-- **OpenWeatherMap** -- Provides weather forecasts. Falls back to estimated data if no API key is set.
+- **LangGraph** - Orchestrates the multi-agent workflow as a StateGraph. Uses `MemorySaver` as the checkpointer so state persists across the human-in-the-loop pause.
+- **LangChain + Groq** - LLM calls go through `langchain-groq` using a free-tier model. Each agent has its own tools bound via `bind_tools()`.
+- **FastAPI** - REST API with four endpoints for creating plans, checking status, submitting reviews, and retrieving the final plan.
+- **Streamlit** - Interactive frontend where users fill in trip details, watch progress, review the draft, and download the final itinerary.
+- **Serper API** - Powers the web search tool so the research agent can pull real-time destination info from Google.
+- **OpenWeatherMap** - Provides weather forecasts. Falls back to estimated data if no API key is set.
 
 
 ## API Endpoints
@@ -65,8 +68,8 @@ requirements.txt
 
 ### Prerequisites
 
-- Python 3.11+
-- API keys for Groq, Serper, and optionally OpenWeatherMap
+- Python 3.13
+- API keys for Groq, Serper, and OpenWeatherMap
 
 ### Installation
 
@@ -110,9 +113,9 @@ The Streamlit UI runs at `http://localhost:8501`.
 
 LangGraph's `interrupt()` function pauses the workflow at the human review node. The graph state is saved by the `MemorySaver` checkpointer, so the process can be resumed later when the user submits their review through the API.
 
-- **Approve** -- The workflow moves to the finalize node and saves the plan.
-- **Modify** -- The workflow loops back to the planning node with the user's feedback, so the planner agent regenerates the itinerary.
-- **Reject** -- The workflow loops all the way back to the research node, re-researching the destination with the user's feedback taken into account.
+- **Approve** - The workflow moves to the finalize node and saves the plan.
+- **Modify** - The workflow loops back to the planning node with the user's feedback, so the planner agent regenerates the itinerary.
+- **Reject** - The workflow loops all the way back to the research node, re-researching the destination with the user's feedback taken into account.
 
 This is handled through LangGraph's `Command(resume=...)` which passes the review data back into the paused graph.
 
