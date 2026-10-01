@@ -144,15 +144,13 @@ def render_plan(plan, expanded=True):
             st.caption(f"• {note}")
 
 
-# ──────────────────────────────────────
 # HEADER
-# ──────────────────────────────────────
+
 st.title("✈️ AI Travel Planner")
 st.caption("Multi-agent travel planning with human-in-the-loop approval")
 
-# ──────────────────────────────────────
 # STAGE 1 — Trip Input Form
-# ──────────────────────────────────────
+
 if st.session_state["stage"] == "input":
     st.header("Plan Your Trip")
 
@@ -201,9 +199,9 @@ if st.session_state["stage"] == "input":
             except Exception as e:
                 st.error(f"Failed to create plan: {e}")
 
-# ──────────────────────────────────────
+
 # STAGE 2 — Loading / Polling
-# ──────────────────────────────────────
+
 elif st.session_state["stage"] == "loading":
     st.header("Generating Your Travel Plan...")
 
@@ -267,9 +265,9 @@ elif st.session_state["stage"] == "loading":
         reset()
         st.rerun()
 
-# ──────────────────────────────────────
+
 # STAGE 3 — Review (HITL)
-# ──────────────────────────────────────
+
 elif st.session_state["stage"] == "review":
     st.header("📋 Review Your Travel Plan")
     st.info("Review the draft itinerary below. You can approve it, request changes, or reject it entirely.")
@@ -345,9 +343,9 @@ elif st.session_state["stage"] == "review":
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# ──────────────────────────────────────
-# STAGE 3.5 — Loading after approval
-# ──────────────────────────────────────
+
+# STAGE 4 — Loading after approval
+
 elif st.session_state["stage"] == "loading_final":
     st.header("Finalizing your plan...")
     plan_id = st.session_state["plan_id"]
@@ -375,9 +373,9 @@ elif st.session_state["stage"] == "loading_final":
         reset()
         st.rerun()
 
-# ──────────────────────────────────────
-# STAGE 4 — Final Plan
-# ──────────────────────────────────────
+
+# STAGE 5 — Final Plan
+
 elif st.session_state["stage"] == "final":
     st.header("🎉 Your Finalized Travel Plan")
     st.success("Plan approved and ready to go!")
