@@ -37,9 +37,5 @@ class PlanStore:
                 plan.update(kwargs)
             return plan
 
-    def exists(self, plan_id: str) -> bool:
-        with self._lock:
-            return plan_id in self._plans
-
 
 plan_store = PlanStore()

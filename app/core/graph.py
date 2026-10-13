@@ -1,6 +1,5 @@
 import asyncio
-import uuid
-from typing import TypedDict, Optional, Annotated
+from typing import TypedDict, Optional
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -37,6 +36,7 @@ async def research_node(state: TravelState) -> dict:
 
 async def planning_node(state: TravelState) -> dict:
     plan_store.update(state["plan_id"], status=PlanStatus.PLANNING)
+    await asyncio.sleep(15)
     try:
         plan = await run_planner(state["request"], state.get("research_data") or {})
         plan_store.update(state["plan_id"], draft_plan=plan, status=PlanStatus.AWAITING_REVIEW)
@@ -142,9 +142,7 @@ async def start_workflow(plan_id: str, request_data: dict):
 async def resume_workflow(plan_id: str, review_data: dict):
     config = {"configurable": {"thread_id": plan_id}}
 
-    if review_data.get("action") == ReviewAction.REJECT:
-        plan_store.update(plan_id, status=PlanStatus.REVISING)
-    elif review_data.get("action") == ReviewAction.MODIFY:
+    if review_data.get("action") in (ReviewAction.REJECT, ReviewAction.MODIFY):
         plan_store.update(plan_id, status=PlanStatus.REVISING)
 
     try:

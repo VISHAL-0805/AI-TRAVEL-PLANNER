@@ -1,6 +1,6 @@
 import json
 from langchain_core.tools import tool
-from app.core.utils import get_currency_info, CURRENCY_SYMBOLS
+from app.core.utils import get_currency_info
 
 
 COST_MULTIPLIERS = {

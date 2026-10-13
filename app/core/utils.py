@@ -50,13 +50,6 @@ def get_currency_info(destination: str) -> tuple[str, float, str]:
     return code, rate, symbol
 
 
-def format_local_price(usd_amount: float, rate: float, symbol: str) -> str:
-    local = round(usd_amount * rate)
-    if rate > 100:
-        return f"{symbol}{local:,}"
-    return f"{symbol}{round(usd_amount * rate, 2):,.2f}"
-
-
 def clean_text(text: str) -> str:
     if not isinstance(text, str):
         return text

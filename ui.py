@@ -7,6 +7,16 @@ API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="AI Travel Planner", page_icon="✈️", layout="wide")
 
+st.markdown(
+    """
+    <style>
+    div[data-testid="InputInstructions"] { display: none !important; }
+    [data-testid="stWidgetInstructions"] { display: none !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --- session state defaults ---
 for key, default in [
     ("plan_id", None),
@@ -90,8 +100,8 @@ def render_plan(plan, expanded=True):
         st.markdown(f"**📍 Destination:** {plan.get('destination', '')}")
         st.markdown(f"**📅 Dates:** {start_date} to {end_date}")
     with col2:
-        st.markdown(f"**💰 Total Budget:** {plan.get('total_budget', 'N/A')}")
-        st.markdown(f"**💱 Currency:** {currency}")
+        st.markdown(f"**Total Budget:** {plan.get('total_budget', 'N/A')}")
+        st.markdown(f"**Currency:** {currency}")
 
     st.divider()
 
@@ -105,11 +115,11 @@ def render_plan(plan, expanded=True):
         with st.expander(header, expanded=expanded):
             c1, c2, c3 = st.columns(3)
             with c1:
-                render_activity("Morning", "🌅", day.get("morning", {}))
+                render_activity("Morning", "", day.get("morning", {}))
             with c2:
-                render_activity("Afternoon", "☀️", day.get("afternoon", {}))
+                render_activity("Afternoon", "", day.get("afternoon", {}))
             with c3:
-                render_activity("Evening", "🌙", day.get("evening", {}))
+                render_activity("Evening", "", day.get("evening", {}))
 
             render_meals(day.get("meals", {}))
 
@@ -117,7 +127,7 @@ def render_plan(plan, expanded=True):
                 st.caption(f"🚇 {day['transport_notes']}")
 
             daily_total = day.get("daily_total", "N/A")
-            st.markdown(f"**💰 Daily Total: {daily_total}**")
+            st.markdown(f"**Daily Total: {daily_total}**")
 
     # accommodation & tips
     st.divider()
@@ -133,13 +143,13 @@ def render_plan(plan, expanded=True):
     with col2:
         tips = plan.get("packing_tips", [])
         if tips:
-            st.markdown("### 🎒 Packing Tips")
+            st.markdown("###  Packing Tips")
             for tip in tips:
                 st.caption(f"• {tip}")
 
     notes = plan.get("important_notes", [])
     if notes:
-        st.markdown("### 📌 Important Notes")
+        st.markdown("###  Important Notes")
         for note in notes:
             st.caption(f"• {note}")
 
@@ -168,7 +178,7 @@ if st.session_state["stage"] == "input":
             end_date = st.date_input("End Date")
             budget_max = st.number_input("Maximum Budget (USD)", min_value=100, value=2000, step=100)
 
-        submitted = st.form_submit_button("🚀 Generate Travel Plan", use_container_width=True)
+        submitted = st.form_submit_button(" Generate Travel Plan", use_container_width=True)
 
     if submitted:
         if not destination:
@@ -223,9 +233,9 @@ elif st.session_state["stage"] == "loading":
 
     status_messages = {
         "researching": ("🔍 Researching your destination...", 30),
-        "planning": ("📝 Building your itinerary...", 65),
+        "planning": (" Building your itinerary...", 65),
         "awaiting_review": ("✅ Draft plan ready!", 100),
-        "revising": ("🔄 Revising based on your feedback...", 50),
+        "revising": (" Revising based on your feedback...", 50),
         "failed": ("❌ Something went wrong.", 0),
     }
 
@@ -269,7 +279,7 @@ elif st.session_state["stage"] == "loading":
 # STAGE 3 — Review (HITL)
 
 elif st.session_state["stage"] == "review":
-    st.header("📋 Review Your Travel Plan")
+    st.header(" Review Your Travel Plan")
     st.info("Review the draft itinerary below. You can approve it, request changes, or reject it entirely.")
 
     plan = st.session_state["draft_plan"]

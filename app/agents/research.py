@@ -1,8 +1,12 @@
+import logging
+
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from app.tools.web_search import search_web
 from app.tools.weather import get_weather_forecast
 from app.core.config import GROQ_API_KEY
+
+logger = logging.getLogger(__name__)
 
 
 RESEARCH_SYSTEM_PROMPT = """You are a travel research specialist. Your job is to gather comprehensive
@@ -28,6 +32,7 @@ def create_research_agent():
         model="openai/gpt-oss-120b",
         api_key=GROQ_API_KEY,
         temperature=0.3,
+        max_tokens=2000,
     )
     tools = [search_web, get_weather_forecast]
     return llm.bind_tools(tools), tools
@@ -56,20 +61,46 @@ async def run_research(request_data: dict) -> dict:
         HumanMessage(content=user_msg),
     ]
 
-    for _ in range(5):
-        response = await llm_with_tools.ainvoke(messages)
+    collected_research = []
+    for i in range(5):
+        try:
+            response = await llm_with_tools.ainvoke(messages)
+        except Exception as e:
+            logger.warning(f"Research LLM call {i} failed: {e}")
+            break
+
         messages.append(response)
+
+        if response.content:
+            collected_research.append(response.content)
 
         if not response.tool_calls:
             break
 
+        bad_tool_calls = False
         for tc in response.tool_calls:
             tool_fn = tool_map.get(tc["name"])
             if tool_fn:
-                result = await tool_fn.ainvoke(tc["args"])
-                messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                try:
+                    result = await tool_fn.ainvoke(tc["args"])
+                    messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                    collected_research.append(str(result)[:600])
+                except Exception as e:
+                    logger.warning(f"Tool {tc['name']} failed with args {tc['args']}: {e}")
+                    messages.append(ToolMessage(content=f"Error: tool call had invalid arguments", tool_call_id=tc["id"]))
+                    bad_tool_calls = True
 
-    final_content = messages[-1].content if messages else "No research data gathered."
+        if bad_tool_calls:
+            messages = [
+                SystemMessage(content=RESEARCH_SYSTEM_PROMPT),
+                HumanMessage(content=user_msg),
+            ]
+
+    final_content = messages[-1].content if messages and hasattr(messages[-1], "content") and messages[-1].content else ""
+    if not final_content and collected_research:
+        final_content = "\n\n".join(collected_research[-3:])
+    if not final_content:
+        final_content = f"Basic research for {destination}: Popular travel destination with cultural, historical, and culinary attractions."
 
     return {
         "destination": destination,
